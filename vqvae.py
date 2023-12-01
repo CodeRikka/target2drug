@@ -4,6 +4,9 @@ from vq import VectorQuantizer
 from transformer_blocks import PositionalEncoding, TransformerEncoder, TransformerDecoder
 
 class VQVAE(nn.Module):
+    # def __init__(self, input_dim, hidden_dim, num_embeddings, embedding_dim, num_heads, num_layers, beta=0.25):
+    #     super(VQVAE, self).__init__()
+    #     # ...（其他初始化代码保持不变）
     def __init__(self, input_dim, hidden_dim, num_embeddings, embedding_dim, num_heads, num_layers, beta=0.25):
         super(VQVAE, self).__init__()
 
@@ -17,49 +20,71 @@ class VQVAE(nn.Module):
         # Transformer Decoder
         self.decoder = TransformerDecoder(embedding_dim, hidden_dim, num_heads, num_layers)
 
-    def forward(self, x):
-        # 编码
-        x = self.pos_encoder(x)
-        encoded = self.encoder(x)
+        # Word Embeddings for Decoder
+        self.word_embed = nn.Embedding(num_embeddings, embedding_dim)
+        self.pos_encoding = PositionalEncoding(embedding_dim, max_len=128)
+
+    def forward(self, protein_input, drug_input):
+        # 编码蛋白质输入
+        protein_input = self.pos_encoder(protein_input)
+        encoded_protein = self.encoder(protein_input)
         
         # 矢量量化
-        quantized, vq_loss = self.vq_layer(encoded)
-        # 解码（确保提供适当的 'mem' 输入）
-        decoded = self.decoder(quantized, encoded)
+        quantized, vq_loss = self.vq_layer(encoded_protein)
 
-        return decoded, vq_loss
-    
-    def loss_function(self, reconstructions, inputs, vq_loss, targets):
+        # 准备药物序列的输入
+        drug_input_seq = drug_input[:, :-1]  # 输入序列（去除最后一个token）
+
+        # 解码
+        target_embed = self.word_embed(drug_input_seq)
+        target_embed = self.pos_encoding(target_embed)
+        predictions = self.decoder(target_embed, quantized).permute(1, 0, 2)
+
+        return predictions, vq_loss
+
+    def loss_function(self, predictions, encoded, targets, vq_loss, input_encoded):
         """
         计算 VQ-VAE 模型的损失。
-        :param reconstructions: 由模型生成的重构输出。
-        :param inputs: 原始输入数据。
+        :param predictions: 模型的输出预测（解码后的SMILES）。
+        :param encoded: 编码器的输出（编码后的蛋白质序列）。
+        :param targets: 真实的目标序列（SMILES）。
         :param vq_loss: 矢量量化损失。
-        :param targets: 目标序列，用于语言模型损失计算。
+        :param input_encoded: 输入序列的编码表示。
         :return: 包含总损失及其组成部分的字典。
         """
-        # 计算重构损失，这里使用 MSE
-        reconstruction_loss = nn.functional.mse_loss(reconstructions, inputs)
+        # 序列重构损失（药物序列的预测与目标的交叉熵损失）
+        sequence_reconstruction_loss = nn.functional.cross_entropy(predictions.view(-1, predictions.size(-1)), targets.view(-1))
 
-        # 计算语言模型损失（交叉熵）
-        lm_loss = nn.functional.cross_entropy(reconstructions.view(-1, reconstructions.size(-1)), targets.view(-1))
+        # 编码-解码重构损失（蛋白质序列的编码与解码后的编码之间的MSE损失）
+        encode_decode_reconstruction_loss = nn.functional.mse_loss(encoded, input_encoded)
 
         # 计算总损失
-        total_loss = reconstruction_loss + vq_loss + lm_loss
+        total_loss = sequence_reconstruction_loss + encode_decode_reconstruction_loss + vq_loss
 
         return {
             'total_loss': total_loss,
-            'reconstruction_loss': reconstruction_loss,
-            'vq_loss': vq_loss,
-            'lm_loss': lm_loss
+            'sequence_reconstruction_loss': sequence_reconstruction_loss,
+            'encode_decode_reconstruction_loss': encode_decode_reconstruction_loss,
+            'vq_loss': vq_loss
         }
 
-        # 使用示例
-        # 假设 `inputs` 和 `targets` 是模型的输入和目标序列
-        # vqvae_model = VQVAE(input_dim, hidden_dim, num_embeddings, embedding_dim, num_heads, num_layers)
-        # reconstructions, vq_loss = vqvae_model(inputs)
-        # losses = vqvae_model.loss_function(reconstructions, inputs, vq_loss, targets)
-        # print(losses)
-        
-        ### need to create target
+    def generate(self, protein_input, start_token, max_length):
+        # 推理模式生成药物序列
+        self.eval()  # 设置为评估模式
+        generated_sequence = [start_token]
 
+        protein_input = self.pos_encoder(protein_input)
+        encoded_protein = self.encoder(protein_input)
+        quantized, _ = self.vq_layer(encoded_protein)
+
+        for _ in range(max_length - 1):
+            input_seq = torch.tensor([generated_sequence], dtype=torch.long, device=protein_input.device)
+            target_embed = self.word_embed(input_seq)
+            target_embed = self.pos_encoding(target_embed)
+            output = self.decoder(target_embed, quantized).permute(1, 0, 2)
+            next_token = torch.argmax(output, dim=-1).squeeze().item()
+            generated_sequence.append(next_token)
+            if next_token == eos_token:  # 假设 eos_token 是序列结束标记
+                break
+
+        return generated_sequence
