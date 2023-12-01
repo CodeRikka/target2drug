@@ -1,0 +1,9 @@
+# 忽略所有 __pycache__ 目录
+**/__pycache__/
+
+# 忽略所有 .pyc 和 .pyo 文件
+*.pyc
+*.pyo
+
+# 忽略 Python 编辑器的备份文件
+*~

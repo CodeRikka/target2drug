@@ -2,14 +2,17 @@ import torch
 from torch import nn
 from vq import VectorQuantizer
 from transformer_blocks import PositionalEncoding, TransformerEncoder, TransformerDecoder
+from tokenizer import Tokenizer
 
 class VQVAE(nn.Module):
     # def __init__(self, input_dim, hidden_dim, num_embeddings, embedding_dim, num_heads, num_layers, beta=0.25):
     #     super(VQVAE, self).__init__()
     #     # ...（其他初始化代码保持不变）
-    def __init__(self, input_dim, hidden_dim, num_embeddings, embedding_dim, num_heads, num_layers, beta=0.25):
+    def __init__(self, tokenizer : Tokenizer, input_dim, hidden_dim, num_embeddings, embedding_dim, num_heads, num_layers, beta=0.25):
         super(VQVAE, self).__init__()
 
+        vocab_size = len(tokenizer)
+        
         # Transformer Encoder
         self.pos_encoder = PositionalEncoding(input_dim)
         self.encoder = TransformerEncoder(input_dim, hidden_dim, num_heads, num_layers)
@@ -21,8 +24,24 @@ class VQVAE(nn.Module):
         self.decoder = TransformerDecoder(embedding_dim, hidden_dim, num_heads, num_layers)
 
         # Word Embeddings for Decoder
-        self.word_embed = nn.Embedding(num_embeddings, embedding_dim)
+        self.word_embed = nn.Embedding(vocab_size, embedding_dim)
         self.pos_encoding = PositionalEncoding(embedding_dim, max_len=128)
+        
+        self.word_pred = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.PReLU(),
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, vocab_size)
+        )
+        
+        self.vocab_size = vocab_size
+        
+        torch.nn.init.zeros_(self.word_pred[3].bias)
+
+        self.sos_value = tokenizer.s2i['<sos>']
+        self.eos_value = tokenizer.s2i['<eos>']
+        self.pad_value = tokenizer.s2i['<pad>']
+        self.max_len = 128
 
     def forward(self, protein_input, drug_input):
         # 编码蛋白质输入
@@ -87,7 +106,7 @@ class VQVAE(nn.Module):
             output = self.decoder(target_embed, quantized).permute(1, 0, 2)
             next_token = torch.argmax(output, dim=-1).squeeze().item()
             generated_sequence.append(next_token)
-            if next_token == eos_token:  # 假设 eos_token 是序列结束标记
+            if next_token == self.eos_value:  # 假设 eos_token 是序列结束标记
                 break
 
         return generated_sequence
