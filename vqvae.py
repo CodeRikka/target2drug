@@ -34,13 +34,14 @@ class VQVAE(nn.Module):
 
         # 准备药物序列的输入
         drug_input_seq = drug_input[:, :-1]  # 输入序列（去除最后一个token）
+        drug_target_seq = drug_input[:, 1:]  # 目标序列（去除第一个token）
 
         # 解码
         target_embed = self.word_embed(drug_input_seq)
         target_embed = self.pos_encoding(target_embed)
         predictions = self.decoder(target_embed, quantized).permute(1, 0, 2)
 
-        return predictions, vq_loss
+        return predictions, vq_loss, drug_target_seq, protein_input, encoded_protein
 
     def loss_function(self, predictions, encoded, targets, vq_loss, input_encoded):
         """
@@ -58,13 +59,15 @@ class VQVAE(nn.Module):
         # 编码-解码重构损失（蛋白质序列的编码与解码后的编码之间的MSE损失）
         encode_decode_reconstruction_loss = nn.functional.mse_loss(encoded, input_encoded)
 
-        # 计算总损失
-        total_loss = sequence_reconstruction_loss + encode_decode_reconstruction_loss + vq_loss
+        # 计算总损失 # 到底要不要加上encode_decode_reconstruction_loss?
+        # total_loss = sequence_reconstruction_loss + encode_decode_reconstruction_loss + vq_loss
 
+        total_loss = sequence_reconstruction_loss + vq_loss
+        
         return {
             'total_loss': total_loss,
             'sequence_reconstruction_loss': sequence_reconstruction_loss,
-            'encode_decode_reconstruction_loss': encode_decode_reconstruction_loss,
+            # 'encode_decode_reconstruction_loss': encode_decode_reconstruction_loss,
             'vq_loss': vq_loss
         }
 
