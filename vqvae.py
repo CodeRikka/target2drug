@@ -29,30 +29,37 @@ class VQVAE(nn.Module):
 
         return decoded, vq_loss
     
-    def loss_function(self, reconstructions, inputs, vq_loss):
+    def loss_function(self, reconstructions, inputs, vq_loss, targets):
         """
         计算 VQ-VAE 模型的损失。
         :param reconstructions: 由模型生成的重构输出。
         :param inputs: 原始输入数据。
         :param vq_loss: 矢量量化损失。
+        :param targets: 目标序列，用于语言模型损失计算。
         :return: 包含总损失及其组成部分的字典。
         """
         # 计算重构损失，这里使用 MSE
         reconstruction_loss = nn.functional.mse_loss(reconstructions, inputs)
 
+        # 计算语言模型损失（交叉熵）
+        lm_loss = nn.functional.cross_entropy(reconstructions.view(-1, reconstructions.size(-1)), targets.view(-1))
+
         # 计算总损失
-        total_loss = reconstruction_loss + vq_loss
+        total_loss = reconstruction_loss + vq_loss + lm_loss
 
         return {
             'total_loss': total_loss,
             'reconstruction_loss': reconstruction_loss,
-            'vq_loss': vq_loss
+            'vq_loss': vq_loss,
+            'lm_loss': lm_loss
         }
 
         # 使用示例
-        # 假设 `inputs` 是模型的输入
+        # 假设 `inputs` 和 `targets` 是模型的输入和目标序列
         # vqvae_model = VQVAE(input_dim, hidden_dim, num_embeddings, embedding_dim, num_heads, num_layers)
         # reconstructions, vq_loss = vqvae_model(inputs)
-        # losses = vqvae_model.loss_function(reconstructions, inputs, vq_loss)
+        # losses = vqvae_model.loss_function(reconstructions, inputs, vq_loss, targets)
         # print(losses)
+        
+        ### need to create target
 
