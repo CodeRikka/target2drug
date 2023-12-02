@@ -36,7 +36,9 @@ def _corrupt(token_seq: List[int], mask_token, corrupt_percent=0.1, poisson_lamb
 
 class SemiSmilesDataset(Dataset):
 
-    def __init__(self, smiles_list, tokenizer: Tokenizer,
+    # def __init__(self, file_path, tokenizer: Tokenizer,
+    #              use_random_input_smiles=False, use_random_target_smiles=False, rsmiles=None, corrupt=True):
+    def __init__(self, file_path, 
                  use_random_input_smiles=False, use_random_target_smiles=False, rsmiles=None, corrupt=True):
         """
         :param smiles_list: list of valid smiles
@@ -48,12 +50,15 @@ class SemiSmilesDataset(Dataset):
         """
         super().__init__()
         
-        self.smiles_list = smiles_list
+        self.smiles_list, self.protein_list = read_data(file_path)
+        
+        tokenizer = Tokenizer(Tokenizer.gen_vocabs(self.smiles_list))
+        
         self.tokenizer = tokenizer
         self.mask_token = tokenizer.SPECIAL_TOKENS.index('<mask>')
 
         self.vocab_size = len(tokenizer)
-        self.len = len(smiles_list)
+        self.len = len(self.smiles_list)
         
         self.use_random_input_smiles = use_random_input_smiles
         self.use_random_target_smiles = use_random_target_smiles
@@ -68,6 +73,7 @@ class SemiSmilesDataset(Dataset):
         return self.len
 
     def __getitem__(self, item):
+        protein_embedding = self.protein_list[item]
         smiles = self.smiles_list[item]
         mol = Chem.MolFromSmiles(smiles)
         
@@ -109,13 +115,14 @@ class SemiSmilesDataset(Dataset):
         # mapping_[atom_idx,:] = mapping
         
         # return corrupted_input, pp_graph, mapping_, target_seq
-        return corrupted_input, target_seq
+        return protein_embedding, corrupted_input, target_seq
 
     @staticmethod
     def collate_fn(batch):
         pad_token = Tokenizer.SPECIAL_TOKENS.index('<pad>')
 
-        corrupted_inputs, pp_graphs, mappings, target_seqs, *other_descriptors = list(zip(*batch))
+        # corrupted_inputs, pp_graphs, mappings, target_seqs, *other_descriptors = list(zip(*batch))
+        protein_emmbedding, corrupted_inputs, target_seqs, *other_descriptors = list(zip(*batch))
 
         corrupted_inputs = \
             pad_sequence(corrupted_inputs, batch_first=True, padding_value=pad_token)
@@ -128,4 +135,4 @@ class SemiSmilesDataset(Dataset):
         target_seqs = pad_sequence(target_seqs, batch_first=True, padding_value=pad_token)
 
         # return corrupted_inputs, input_mask, pp_graphs, mappings, target_seqs
-        return corrupted_inputs, input_mask, target_seqs
+        return protein_emmbedding, corrupted_inputs, input_mask, target_seqs
