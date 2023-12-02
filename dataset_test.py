@@ -52,7 +52,8 @@ class SemiSmilesDataset(Dataset):
         
         self.smiles_list, self.protein_list = read_data(file_path)
         
-        tokenizer = Tokenizer(Tokenizer.gen_vocabs(self.smiles_list))
+        tokenizer = Tokenizer(Tokenizer.gen_vocabs(set(self.smiles_list)))
+        # print(tokenizer)
         
         self.tokenizer = tokenizer
         self.mask_token = tokenizer.SPECIAL_TOKENS.index('<mask>')
@@ -74,6 +75,8 @@ class SemiSmilesDataset(Dataset):
 
     def __getitem__(self, item):
         protein_embedding = self.protein_list[item]
+        # protein_embedding = torch.Tensor(protein_embedding)
+        
         smiles = self.smiles_list[item]
         mol = Chem.MolFromSmiles(smiles)
         
@@ -124,6 +127,9 @@ class SemiSmilesDataset(Dataset):
         # corrupted_inputs, pp_graphs, mappings, target_seqs, *other_descriptors = list(zip(*batch))
         protein_emmbedding, corrupted_inputs, target_seqs, *other_descriptors = list(zip(*batch))
 
+        protein_emmbedding = \
+            pad_sequence(protein_emmbedding, batch_first=True)
+        
         corrupted_inputs = \
             pad_sequence(corrupted_inputs, batch_first=True, padding_value=pad_token)
         input_mask = (corrupted_inputs==pad_token).bool()
