@@ -43,45 +43,44 @@ class VQVAE(nn.Module):
         self.pad_value = tokenizer.s2i['<pad>']
         self.max_len = 128
 
-    def forward(self, protein_input, drug_input):
-        # 编码蛋白质输入
-        protein_input = self.pos_encoder(protein_input)
-        encoded_protein = self.encoder(protein_input)
+    # def forward(self, protein_input, drug_input):
+    #     # 编码蛋白质输入
+    #     protein_input = self.pos_encoder(protein_input)
+    #     encoded_protein = self.encoder(protein_input)
         
-        # 矢量量化
-        quantized, vq_loss = self.vq_layer(encoded_protein)
+    #     # 矢量量化
+    #     quantized, vq_loss = self.vq_layer(encoded_protein)
 
 
-        mem_padding_mask = protein_input == self.pad_value  # 假设 protein_input 已经被填充
-
+    #     mem_padding_mask = protein_input == self.pad_value  # 假设 protein_input 已经被填充
         
-        print(drug_input)
-        # 准备药物序列的输入
-        drug_input_seq = drug_input[:, :-1]  # 输入序列（去除最后一个token）
-        drug_target_seq = drug_input[:, 1:]  # 目标序列（去除第一个token）
+    #     print(drug_input)
+    #     # 准备药物序列的输入
+    #     drug_input_seq = drug_input[:, :-1]  # 输入序列（去除最后一个token）
+    #     drug_target_seq = drug_input[:, 1:]  # 目标序列（去除第一个token）
 
-        # 解码
-        target_embed = self.word_embed(drug_input_seq)
-        target_embed = self.pos_encoding(target_embed)
+    #     # 解码
+    #     target_embed = self.word_embed(drug_input_seq)
+    #     target_embed = self.pos_encoding(target_embed)
 
-        # 目标掩码 (Target Masking)
-        target_length = drug_input_seq.size(1)
-        target_mask = torch.triu(torch.ones(target_length, target_length, dtype=torch.bool),
-                                diagonal=1).to(drug_input_seq.device)
+    #     # 目标掩码 (Target Masking)
+    #     target_length = drug_input_seq.size(1)
+    #     target_mask = torch.triu(torch.ones(target_length, target_length, dtype=torch.bool),
+    #                             diagonal=1).to(drug_input_seq.device)
 
-        # 由于每个序列可能有不同的长度，我们需要创建一个动态的掩码
-        # 这里假设 drug_input_seq 已经是被填充（padded）过的，且填充值为 self.pad_value
-        # 创建一个掩码，用于表示每个序列的实际长度
-        input_padding_mask = drug_input_seq == self.pad_value
+    #     # 由于每个序列可能有不同的长度，我们需要创建一个动态的掩码
+    #     # 这里假设 drug_input_seq 已经是被填充（padded）过的，且填充值为 self.pad_value
+    #     # 创建一个掩码，用于表示每个序列的实际长度
+    #     input_padding_mask = drug_input_seq == self.pad_value
 
-        # 使用 input_padding_mask 来调整 target_mask
-        # 以确保在计算自注意力时不考虑填充的部分
-        target_mask = target_mask & ~input_padding_mask.unsqueeze(1)
+    #     # 使用 input_padding_mask 来调整 target_mask
+    #     # 以确保在计算自注意力时不考虑填充的部分
+    #     target_mask = target_mask & ~input_padding_mask.unsqueeze(1)
 
-        predictions = self.decoder(target_embed, quantized, x_mask=target_mask, x_padding_mask=None, mem_padding_mask=mem_padding_mask).permute(1, 0, 2)
+    #     predictions = self.decoder(target_embed, quantized, x_mask=target_mask, x_padding_mask=None, mem_padding_mask=mem_padding_mask).permute(1, 0, 2)
 
 
-        return predictions, vq_loss, drug_target_seq, protein_input, encoded_protein
+    #     return predictions, vq_loss, drug_target_seq, protein_input, encoded_protein
 
     def loss_function(self, predictions, encoded, targets, vq_loss, input_encoded):
         """
@@ -96,9 +95,6 @@ class VQVAE(nn.Module):
         # 序列重构损失（药物序列的预测与目标的交叉熵损失）
         sequence_reconstruction_loss = nn.functional.cross_entropy(predictions.view(-1, predictions.size(-1)), targets.view(-1))
 
-        # 编码-解码重构损失（蛋白质序列的编码与解码后的编码之间的MSE损失）
-        encode_decode_reconstruction_loss = nn.functional.mse_loss(encoded, input_encoded)
-
         # 计算总损失 # 到底要不要加上encode_decode_reconstruction_loss?
         # total_loss = sequence_reconstruction_loss + encode_decode_reconstruction_loss + vq_loss
 
@@ -107,7 +103,6 @@ class VQVAE(nn.Module):
         return {
             'total_loss': total_loss,
             'sequence_reconstruction_loss': sequence_reconstruction_loss,
-            # 'encode_decode_reconstruction_loss': encode_decode_reconstruction_loss,
             'vq_loss': vq_loss
         }
 
