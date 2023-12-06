@@ -6,9 +6,13 @@ from tokenizer import Tokenizer
 import numpy as np
 
 from dataset_test import SemiSmilesDataset
+from torch.optim.lr_scheduler import CosineAnnealingLR
+
 
 from tqdm.auto import tqdm
 
+
+from torch.optim import AdamW
 
 file_path = 'data/processed_data_clean.csv'
 
@@ -24,6 +28,10 @@ num_layers = 8
 model = VQVAE(dataset.tokenizer, input_dim, hidden_dim, num_embeddings, embedding_dim, num_heads, num_layers)
 
 loader = DataLoader(dataset=dataset, batch_size=2, shuffle=True, collate_fn=dataset.collate_fn)
+
+
+optimizer = AdamW(model.parameters(), lr=3e-4, weight_decay=1e-6, amsgrad=False)
+scheduler = CosineAnnealingLR(optimizer, T_max=4, eta_min=1e-6, last_epoch=-1)
 
 for step, batch_data in tqdm(enumerate(loader), total=len(loader)):
 
