@@ -4,6 +4,8 @@ from vq import VectorQuantizer
 from transformer_blocks import PositionalEncoding, TransformerEncoder, TransformerDecoder
 from tokenizer import Tokenizer
 
+import torch.nn.functional as F
+
 class VQVAE(nn.Module):
     # def __init__(self, input_dim, hidden_dim, num_embeddings, embedding_dim, num_heads, num_layers, beta=0.25):
     #     super(VQVAE, self).__init__()
@@ -45,7 +47,35 @@ class VQVAE(nn.Module):
     
     # def forward(self, protein_inputs, drug_inputs):
         
+    def forward(self, protein_embeddings, cruppted_inputs, input_mask, targets):
+        
+        protein_inputs = self.pos_encoder(protein_embeddings)
+        encoded_proteins = self.encoder(protein_inputs)
+        quantized, vq_loss = self.vq_layer(encoded_proteins)
+        
+        # fake_mask
+        mem_padding_mask = protein_inputs == -100
+        print(mem_padding_mask)
+        
+        _, target_length = targets.shape
+        target_mask = torch.triu(torch.ones(target_length, target_length, dtype=torch.bool),
+                                 diagonal=1).to(targets.device)
+        target_embed = self.word_embed(targets)
+        target_embed = self.pos_encoding(target_embed.permute(1, 0, 2).contiguous())
 
+        # predict
+        output = self.decoder(target_embed, quantized,
+                              x_mask = target_mask, mem_padding_mask = mem_padding_mask).permute(1, 0, 2).contiguous()
+        prediction_scores = self.word_pred(output)
+        
+        # lm_loss
+        shifted_prediction_scores = prediction_scores[:, :-1, :].contiguous()
+        targets = targets[:, 1:].contiguous()
+        lm_loss = F.cross_entropy(shifted_prediction_scores.view(-1, self.vocab_size), targets.view(-1),
+                                  ignore_index=self.pad_value)
+        
+        return prediction_scores, lm_loss, vq_loss
+        
     # def forward(self, protein_input, drug_input):
     #     # 编码蛋白质输入
     #     protein_input = self.pos_encoder(protein_input)

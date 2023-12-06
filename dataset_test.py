@@ -127,8 +127,8 @@ class SemiSmilesDataset(Dataset):
         # corrupted_inputs, pp_graphs, mappings, target_seqs, *other_descriptors = list(zip(*batch))
         protein_emmbedding, corrupted_inputs, target_seqs, *other_descriptors = list(zip(*batch))
 
-        protein_emmbedding = \
-            pad_sequence(protein_emmbedding, batch_first=True)
+        protein_emmbeddings = \
+            pad_sequence(protein_emmbedding, batch_first=True, padding_value=-100)
         
         corrupted_inputs = \
             pad_sequence(corrupted_inputs, batch_first=True, padding_value=pad_token)
@@ -141,4 +141,4 @@ class SemiSmilesDataset(Dataset):
         target_seqs = pad_sequence(target_seqs, batch_first=True, padding_value=pad_token)
 
         # return corrupted_inputs, input_mask, pp_graphs, mappings, target_seqs
-        return protein_emmbedding, corrupted_inputs, input_mask, target_seqs
+        return protein_emmbeddings, corrupted_inputs, input_mask, target_seqs
