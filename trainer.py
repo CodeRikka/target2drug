@@ -25,9 +25,14 @@ embedding_dim = 768
 num_heads = 8
 num_layers = 8
 
-model = VQVAE(dataset.tokenizer, input_dim, hidden_dim, num_embeddings, embedding_dim, num_heads, num_layers)
+from simple_ed import ED
 
-loader = DataLoader(dataset=dataset, batch_size=2, shuffle=True, collate_fn=dataset.collate_fn)
+# model = VQVAE(dataset.tokenizer, input_dim, hidden_dim, num_embeddings, embedding_dim, num_heads, num_layers).to('cuda:0')
+
+model = ED(dataset.tokenizer, input_dim, hidden_dim, num_embeddings, embedding_dim, num_heads, num_layers).to('cuda:0')
+
+
+loader = DataLoader(dataset=dataset, batch_size=3, shuffle=True, collate_fn=dataset.collate_fn)
 
 
 optimizer = AdamW(model.parameters(), lr=3e-4, weight_decay=1e-6, amsgrad=False)

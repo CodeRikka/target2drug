@@ -76,7 +76,7 @@ class TransformerDecoder(nn.Module):
         self.layer = nn.ModuleList([
             TransformerDecoderLayer(Namespace({
                 'decoder_embed_dim': dim,
-                'encoder_embed_dim': dim,  # 确保这里与编码器的输出维度相匹配
+                # 'encoder_embed_dim': dim,  # 确保这里与编码器的输出维度相匹配
                 'decoder_attention_heads': num_head,
                 'attention_dropout': 0.1,
                 'dropout': 0.1,

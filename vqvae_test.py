@@ -53,6 +53,8 @@ class VQVAE(nn.Module):
         encoded_proteins = self.encoder(protein_inputs)
         quantized, vq_loss = self.vq_layer(encoded_proteins)
         
+        # print(quantized.shape)
+        
         # fake_mask
         mem_padding_mask = protein_inputs == -100
         print(mem_padding_mask)
